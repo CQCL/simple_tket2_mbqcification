@@ -1,0 +1,36 @@
+# Optionally import other extensions. The `prelude` is always imported.
+imports: []
+
+extensions:
+  - # Each extension must have a name
+    name: ExtMBQC
+    types:
+      - name: MyBool
+        description: My own version of BOOL_T, since non-custom types are not yet supported through YAML
+        bound: Copyable
+    operations:
+      - name: PrepPlus
+        description: Allocate a qubit and prepare it in the |+> state
+        signature:
+          inputs: []
+          outputs: [Q]
+      - name: MyMeasure
+        description: My own version of Measure, so that it has an output type MyBool instead of BOOL_T
+        signature:
+          inputs: [Q]
+          outputs: [Q, MyBool]
+      - name: CorrectionX
+        description: A classically controlled X correction using MyBool as its conditional
+        signature:
+          inputs: [Q, MyBool]
+          outputs: [Q]
+      - name: CorrectionZ
+        description: A classically controlled Z correction using MyBool as its conditional
+        signature:
+          inputs: [Q, MyBool]
+          outputs: [Q]
+      - name: XOR
+        description: A XOR operation on MyBool
+        signature:
+          inputs: [MyBool, MyBool]
+          outputs: [MyBool]
