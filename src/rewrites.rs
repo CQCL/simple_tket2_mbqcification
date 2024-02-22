@@ -131,3 +131,84 @@ pub fn cancel_s_gates(circ: &mut Hugr) {
         matches = m.find_matches(circ);
     }
 }
+
+pub fn push_corrections(circ: &mut Hugr, registry: &ExtensionRegistry) {
+    // Instantiate the LHS patterns
+    let mut lhs_of_rules = vec![];
+    lhs_of_rules.push(CircuitPattern::try_from_circuit(
+        &patterns::xcorr_h(&registry).unwrap()
+    ).unwrap());
+    lhs_of_rules.push(CircuitPattern::try_from_circuit(
+        &patterns::zcorr_h(&registry).unwrap()
+    ).unwrap());
+    lhs_of_rules.push(CircuitPattern::try_from_circuit(
+        &patterns::xicorr_cz(&registry).unwrap()
+    ).unwrap());
+    lhs_of_rules.push(CircuitPattern::try_from_circuit(
+        &patterns::ixcorr_cz(&registry).unwrap()
+    ).unwrap());
+    lhs_of_rules.push(CircuitPattern::try_from_circuit(
+        &patterns::zicorr_cz(&registry).unwrap()
+    ).unwrap());
+    lhs_of_rules.push(CircuitPattern::try_from_circuit(
+        &patterns::izcorr_cz(&registry).unwrap()
+    ).unwrap());
+    lhs_of_rules.push(CircuitPattern::try_from_circuit(
+        &patterns::xcorr_s(&registry).unwrap()
+    ).unwrap());
+    lhs_of_rules.push(CircuitPattern::try_from_circuit(
+        &patterns::zcorr_s(&registry).unwrap()
+    ).unwrap());
+
+    // Create the pattern matcher and find the first matches
+    let m = PatternMatcher::from_patterns(lhs_of_rules);
+    let mut matches = m.find_matches(circ);
+    
+    // Apply all of the rewrites exhaustively
+    while matches.len() > 0 {
+        let mut this_rewrites = vec![];
+
+        for matched in matches {
+            // Identify which of the rules was matched in this case
+            let this_replacement = match matched.pattern_id() {
+                PatternID(0) => Ok(patterns::h_zcorr(&registry).unwrap()),
+                PatternID(1) => Ok(patterns::h_xcorr(&registry).unwrap()),
+                PatternID(2) => Ok(patterns::cz_xzcorr(&registry).unwrap()),
+                PatternID(3) => Ok(patterns::cz_zxcorr(&registry).unwrap()),
+                PatternID(4) => Ok(patterns::cz_zicorr(&registry).unwrap()),
+                PatternID(5) => Ok(patterns::cz_izcorr(&registry).unwrap()),
+                PatternID(6) => Ok(patterns::s_xcorr_zcorr(&registry).unwrap()),
+                PatternID(7) => Ok(patterns::s_zcorr(&registry).unwrap()),
+                _ => Err("Can't happen!"),
+            }.unwrap();
+
+            // Create the rewrite instance, and batch it with the rest
+            let rw = matched.to_rewrite(circ, this_replacement).unwrap();
+            this_rewrites.push(rw);
+        }
+
+        // Apply the batched rewrites using an exhaustive strategy
+        apply_rewrites_exhaustively(this_rewrites, circ);
+
+        // Find the next set of matches
+        matches = m.find_matches(circ);
+    }
+}
+
+
+
+pub fn prep_to_alloc(circ: &mut Hugr, registry: &ExtensionRegistry) {
+    let lhs = patterns::prep(registry).unwrap();
+    let rhs = patterns::alloc_reset_h().unwrap();
+
+    let p = CircuitPattern::try_from_circuit(&lhs).unwrap();
+    let m = PatternMatcher::from_patterns(vec![p]);
+
+    let matches = m.find_matches(circ);
+    for matched in matches {
+        matched.to_rewrite(circ, rhs.clone())
+            .unwrap()
+            .apply(circ)
+            .unwrap();
+    }
+}

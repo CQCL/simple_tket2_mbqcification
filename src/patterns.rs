@@ -1,11 +1,12 @@
 use hugr::{
-    builder::{BuildError, DFGBuilder, Dataflow, DataflowHugr},
+    builder::{BuildError, Container, DFGBuilder, Dataflow, DataflowHugr},
     extension::{
         prelude::QB_T, ExtensionRegistry, PRELUDE_REGISTRY
     },
-    types::FunctionType, Hugr
+    types::{FunctionType, Type}, Hugr, HugrView
 };
 use tket2::Tk2Op;
+use crate::utils::viz_hugr;
 
 
 pub fn h() -> Result<Hugr, BuildError> {
@@ -20,8 +21,20 @@ pub fn h() -> Result<Hugr, BuildError> {
     h.finish_hugr_with_outputs([q], &PRELUDE_REGISTRY)
 }
 
-pub fn mbqc_h(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+pub fn prep(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let prep = extension.instantiate_extension_op("PrepPlus", [], registry).unwrap();
 
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![], vec![QB_T]))?;
+    let res = h.add_dataflow_op(prep, [])?;
+    let q = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q], registry)
+}
+
+pub fn mbqc_h(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
     // Load the extension
     let extension = registry.get("ExtMBQC").unwrap();
     let prepare_op = extension.instantiate_extension_op("PrepPlus", [], registry).unwrap();
@@ -69,7 +82,7 @@ pub fn mbqc_h(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
     // let q_out = res.out_wire(0);
 
     // viz_hugr(h.hugr());
-    h.finish_hugr_with_outputs([q_out], &registry)
+    h.finish_hugr_with_outputs([q_out], registry)
 }
 
 pub fn s_cz_0() -> Result<Hugr, BuildError> {
@@ -156,4 +169,374 @@ pub fn id() -> Result<Hugr, BuildError> {
     let mut inps = h.input_wires();
     let q = inps.next().unwrap();
     h.finish_hugr_with_outputs([q], &PRELUDE_REGISTRY)   
+}
+
+pub fn xcorr_h(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let x_corr = extension.instantiate_extension_op("CorrectionX", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, my_bool], vec![QB_T]))?;
+    let mut inps = h.input_wires();
+    let q = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(x_corr, [q, c])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::H, [q])?;
+    let q = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q], registry)
+}
+
+pub fn h_zcorr(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let z_corr = extension.instantiate_extension_op("CorrectionZ", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, my_bool], vec![QB_T]))?;
+    let mut inps = h.input_wires();
+    let q = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::H, [q])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(z_corr, [q, c])?;
+    let q = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q], registry)
+}
+
+pub fn zcorr_h(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let z_corr = extension.instantiate_extension_op("CorrectionZ", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, my_bool], vec![QB_T]))?;
+    let mut inps = h.input_wires();
+    let q = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(z_corr, [q, c])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::H, [q])?;
+    let q = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q], registry)
+}
+
+pub fn h_xcorr(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let x_corr = extension.instantiate_extension_op("CorrectionX", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, my_bool], vec![QB_T]))?;
+    let mut inps = h.input_wires();
+    let q = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::H, [q])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(x_corr, [q, c])?;
+    let q = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q], registry)
+}
+
+pub fn xcorr_s(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let x_corr = extension.instantiate_extension_op("CorrectionX", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, my_bool], vec![QB_T]))?;
+    let mut inps = h.input_wires();
+    let q = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(x_corr, [q, c])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::S, [q])?;
+    let q = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q], registry)
+}
+
+pub fn s_xcorr_zcorr(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let copy = extension.instantiate_extension_op("Copy", [], registry).unwrap();
+    let x_corr = extension.instantiate_extension_op("CorrectionX", [], registry).unwrap();
+    let z_corr = extension.instantiate_extension_op("CorrectionZ", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, my_bool], vec![QB_T]))?;
+    let mut inps = h.input_wires();
+    let q = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::S, [q])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(copy, [c])?;
+    let c_x = res.out_wire(0);
+    let c_z = res.out_wire(1);
+    let res = h.add_dataflow_op(x_corr, [q, c_x])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(z_corr, [q, c_z])?;
+    let q = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q], registry)
+}
+
+pub fn zcorr_s(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let z_corr = extension.instantiate_extension_op("CorrectionZ", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, my_bool], vec![QB_T]))?;
+    let mut inps = h.input_wires();
+    let q = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(z_corr, [q, c])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::S, [q])?;
+    let q = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q], registry)
+}
+
+pub fn s_zcorr(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let z_corr = extension.instantiate_extension_op("CorrectionZ", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, my_bool], vec![QB_T]))?;
+    let mut inps = h.input_wires();
+    let q = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::S, [q])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(z_corr, [q, c])?;
+    let q = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q], registry)
+}
+
+pub fn xicorr_cz(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let x_corr = extension.instantiate_extension_op("CorrectionX", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T, my_bool], vec![QB_T, QB_T]))?;
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(x_corr, [q0, c])?;
+    let q0 = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+    
+    h.finish_hugr_with_outputs([q0, q1], registry)
+}
+
+pub fn cz_xzcorr(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let copy = extension.instantiate_extension_op("Copy", [], registry).unwrap();
+    let x_corr = extension.instantiate_extension_op("CorrectionX", [], registry).unwrap();
+    let z_corr = extension.instantiate_extension_op("CorrectionZ", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T, my_bool], vec![QB_T, QB_T]))?;
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+    let res = h.add_dataflow_op(copy, [c])?;
+    let c0 = res.out_wire(0);
+    let c1 = res.out_wire(1);
+    let res = h.add_dataflow_op(x_corr, [q0, c0])?;
+    let q0 = res.out_wire(0);
+    let res = h.add_dataflow_op(z_corr, [q1, c1])?;
+    let q1 = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q0, q1], registry)
+}
+
+pub fn ixcorr_cz(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let x_corr = extension.instantiate_extension_op("CorrectionX", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T, my_bool], vec![QB_T, QB_T]))?;
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(x_corr, [q1, c])?;
+    let q1 = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+    
+    h.finish_hugr_with_outputs([q0, q1], registry)
+}
+
+pub fn cz_zxcorr(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let copy = extension.instantiate_extension_op("Copy", [], registry).unwrap();
+    let x_corr = extension.instantiate_extension_op("CorrectionX", [], registry).unwrap();
+    let z_corr = extension.instantiate_extension_op("CorrectionZ", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T, my_bool], vec![QB_T, QB_T]))?;
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+    let res = h.add_dataflow_op(copy, [c])?;
+    let c0 = res.out_wire(0);
+    let c1 = res.out_wire(1);
+    let res = h.add_dataflow_op(z_corr, [q0, c0])?;
+    let q0 = res.out_wire(0);
+    let res = h.add_dataflow_op(x_corr, [q1, c1])?;
+    let q1 = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q0, q1], registry)
+}
+
+pub fn zicorr_cz(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let z_corr = extension.instantiate_extension_op("CorrectionZ", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T, my_bool], vec![QB_T, QB_T]))?;
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(z_corr, [q0, c])?;
+    let q0 = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+    
+    h.finish_hugr_with_outputs([q0, q1], registry)
+}
+
+pub fn izcorr_cz(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let z_corr = extension.instantiate_extension_op("CorrectionZ", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T, my_bool], vec![QB_T, QB_T]))?;
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(z_corr, [q1, c])?;
+    let q1 = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+    
+    h.finish_hugr_with_outputs([q0, q1], registry)
+}
+
+pub fn cz_zicorr(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let z_corr = extension.instantiate_extension_op("CorrectionZ", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T, my_bool], vec![QB_T, QB_T]))?;
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+    let res = h.add_dataflow_op(z_corr, [q0, c])?;
+    let q0 = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q0, q1], registry)
+}
+
+pub fn cz_izcorr(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
+    // Load the extension
+    let extension = registry.get("ExtMBQC").unwrap();
+    let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
+    let z_corr = extension.instantiate_extension_op("CorrectionZ", [], registry).unwrap();
+
+    // Build the HUGR
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T, my_bool], vec![QB_T, QB_T]))?;
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+    let c = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+    let res = h.add_dataflow_op(z_corr, [q1, c])?;
+    let q1 = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q0, q1], registry)
+}
+
+pub fn alloc_reset_h() -> Result<Hugr, BuildError> {
+
+    let mut h = DFGBuilder::new(FunctionType::new(vec![], vec![QB_T]))?;
+    let res = h.add_dataflow_op(Tk2Op::QAlloc, [])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::Reset, [q])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::H, [q])?;
+    let q = res.out_wire(0);
+    
+    h.finish_hugr_with_outputs([q], &PRELUDE_REGISTRY)
 }

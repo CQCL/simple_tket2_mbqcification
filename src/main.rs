@@ -3,27 +3,22 @@ use hugr::{
     extension::{
         declarative::load_extensions, prelude::QB_T, PRELUDE_REGISTRY
     }, 
-    types::FunctionType, Hugr, HugrView
+    types::FunctionType, Hugr
 };
 use tket2::Tk2Op;
-use urlencoding;
-use webbrowser;
 
+mod utils;
 mod patterns;
 mod rewrites;
+use crate::utils::viz_hugr;
 use crate::rewrites::{
     to_mbqc,
     push_s_gates,
     cancel_s_gates,
+    push_corrections,
+    prep_to_alloc,
 };
 
-
-// Copied from Dan's https://github.com/daniel-mills-cqc/tket2-pec-rust
-fn viz_hugr(hugr: &impl HugrView) {
-    let mut base: String = "https://dreampuf.github.io/GraphvizOnline/#".into();
-    base.push_str(&urlencoding::encode(hugr.dot_string().as_ref()));
-    webbrowser::open(&base).unwrap();
-}
 
 fn circ_example() -> Result<Hugr, BuildError> {
     let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T; 4], vec![QB_T; 4]))?;
@@ -83,11 +78,14 @@ fn main() {
     viz_hugr(&circ);
 
     // Step 3: Remove all corrections from ancilla qubits, propagating them to the boolean expression for the correction on output qubits
+    push_corrections(&mut circ, &reg);
+    // signal_shift(&mut circ, &reg);
 
     // Step 4: Convert the MBQC pattern to a circuit using n qubits
 
     // Step 5: Apply some basic depth reduction strategies
 
     // Step 6: Replace each operation from the ExtMBQC extension with its implementation in terms of Tk2Ops
-    
+    prep_to_alloc(&mut circ, &reg);
+    viz_hugr(&circ);
 }

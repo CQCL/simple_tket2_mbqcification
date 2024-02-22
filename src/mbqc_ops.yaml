@@ -29,6 +29,11 @@ extensions:
         signature:
           inputs: [Q, MyBool]
           outputs: [Q]
+      - name: Copy
+        description: A copying operation on MyBool
+        signature:
+          inputs: [MyBool]
+          outputs: [MyBool, MyBool]
       - name: XOR
         description: A XOR operation on MyBool
         signature:
