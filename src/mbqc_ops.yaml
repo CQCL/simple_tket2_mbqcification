@@ -14,7 +14,7 @@ extensions:
         signature:
           inputs: []
           outputs: [Q]
-      - name: MyMeasure
+      - name: MeasureX
         description: My own version of Measure, so that it has an output type MyBool instead of BOOL_T
         signature:
           inputs: [Q]

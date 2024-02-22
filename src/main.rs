@@ -11,7 +11,11 @@ use webbrowser;
 
 mod patterns;
 mod rewrites;
-use crate::rewrites::to_mbqc;
+use crate::rewrites::{
+    to_mbqc,
+    push_s_gates,
+    cancel_s_gates,
+};
 
 
 // Copied from Dan's https://github.com/daniel-mills-cqc/tket2-pec-rust
@@ -35,6 +39,10 @@ fn circ_example() -> Result<Hugr, BuildError> {
     let q3 = res.out_wire(1);
     let res = h.add_dataflow_op(Tk2Op::H, [q0])?;
     let q0 = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::S, [q1])?;
+    let q1 = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::S, [q2])?;
+    let q2 = res.out_wire(0);
     let res = h.add_dataflow_op(Tk2Op::CZ, [q1, q2])?;
     let q1 = res.out_wire(0);
     let q2 = res.out_wire(1);
@@ -46,9 +54,13 @@ fn circ_example() -> Result<Hugr, BuildError> {
     let q2 = res.out_wire(0);
     let res = h.add_dataflow_op(Tk2Op::H, [q1])?;
     let q1 = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::S, [q0])?;
+    let q0 = res.out_wire(0);
     let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q3])?;
     let q0 = res.out_wire(0);
     let q3 = res.out_wire(1);
+    let res = h.add_dataflow_op(Tk2Op::S, [q0])?;
+    let q0 = res.out_wire(0);
     
     h.finish_hugr_with_outputs([q0, q1, q2, q3], &PRELUDE_REGISTRY)
 }
@@ -64,9 +76,11 @@ fn main() {
 
     // Step 1: Convert each H gate to MBQC pattern
     to_mbqc(&mut circ, &reg);
-    viz_hugr(&circ);
 
     // Step 2: Push all corrections and S gates to the end of the qubit wire
+    push_s_gates(&mut circ);
+    cancel_s_gates(&mut circ);
+    viz_hugr(&circ);
 
     // Step 3: Remove all corrections from ancilla qubits, propagating them to the boolean expression for the correction on output qubits
 

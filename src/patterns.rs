@@ -25,7 +25,7 @@ pub fn mbqc_h(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
     // Load the extension
     let extension = registry.get("ExtMBQC").unwrap();
     let prepare_op = extension.instantiate_extension_op("PrepPlus", [], registry).unwrap();
-    let measure_op = extension.instantiate_extension_op("MyMeasure", [], registry).unwrap();
+    let measure_op = extension.instantiate_extension_op("MeasureX", [], registry).unwrap();
     let x_corr = extension.instantiate_extension_op("CorrectionX", [], registry).unwrap();
 
     // Build the HUGR
@@ -70,4 +70,90 @@ pub fn mbqc_h(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
 
     // viz_hugr(h.hugr());
     h.finish_hugr_with_outputs([q_out], &registry)
+}
+
+pub fn s_cz_0() -> Result<Hugr, BuildError> {
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T], vec![QB_T, QB_T]))?;
+
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::S, [q0])?;
+    let q0 = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+
+    h.finish_hugr_with_outputs([q0, q1], &PRELUDE_REGISTRY)   
+}
+
+pub fn s_cz_1() -> Result<Hugr, BuildError> {
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T], vec![QB_T, QB_T]))?;
+
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::S, [q1])?;
+    let q1 = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+
+    h.finish_hugr_with_outputs([q0, q1], &PRELUDE_REGISTRY)   
+}
+
+pub fn cz_s_0() -> Result<Hugr, BuildError> {
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T], vec![QB_T, QB_T]))?;
+
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+    let res = h.add_dataflow_op(Tk2Op::S, [q0])?;
+    let q0 = res.out_wire(0);
+
+    h.finish_hugr_with_outputs([q0, q1], &PRELUDE_REGISTRY)   
+}
+
+pub fn cz_s_1() -> Result<Hugr, BuildError> {
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, QB_T], vec![QB_T, QB_T]))?;
+
+    let mut inps = h.input_wires();
+    let q0 = inps.next().unwrap();
+    let q1 = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::CZ, [q0, q1])?;
+    let q0 = res.out_wire(0);
+    let q1 = res.out_wire(1);
+    let res = h.add_dataflow_op(Tk2Op::S, [q1])?;
+    let q1 = res.out_wire(0);
+
+    h.finish_hugr_with_outputs([q0, q1], &PRELUDE_REGISTRY)   
+}
+
+pub fn s_s() -> Result<Hugr, BuildError> {
+    let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T], vec![QB_T]))?;
+
+    let mut inps = h.input_wires();
+    let q = inps.next().unwrap();
+
+    let res = h.add_dataflow_op(Tk2Op::S, [q])?;
+    let q = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::S, [q])?;
+    let q = res.out_wire(0);
+
+    h.finish_hugr_with_outputs([q], &PRELUDE_REGISTRY)   
+}
+
+pub fn id() -> Result<Hugr, BuildError> {
+    let h = DFGBuilder::new(FunctionType::new(vec![QB_T], vec![QB_T]))?;
+
+    let mut inps = h.input_wires();
+    let q = inps.next().unwrap();
+    h.finish_hugr_with_outputs([q], &PRELUDE_REGISTRY)   
 }
