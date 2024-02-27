@@ -13,9 +13,8 @@ mod rewrites;
 use crate::utils::viz_hugr;
 use crate::rewrites::{
     to_mbqc,
-    push_s_gates,
-    cancel_s_gates,
-    push_corrections,
+    push_corrections_and_s_gates,
+    propagate_corrections,
     prep_to_alloc,
 };
 
@@ -29,9 +28,15 @@ fn circ_example() -> Result<Hugr, BuildError> {
     let q2 = inps.next().unwrap();
     let q3 = inps.next().unwrap();
 
+    let res = h.add_dataflow_op(Tk2Op::H, [q3])?;
+    let q3 = res.out_wire(0);
     let res = h.add_dataflow_op(Tk2Op::CZ, [q2, q3])?;
     let q2 = res.out_wire(0);
     let q3 = res.out_wire(1);
+    let res = h.add_dataflow_op(Tk2Op::S, [q3])?;
+    let q3 = res.out_wire(0);
+    let res = h.add_dataflow_op(Tk2Op::H, [q3])?;
+    let q3 = res.out_wire(0);
     let res = h.add_dataflow_op(Tk2Op::H, [q0])?;
     let q0 = res.out_wire(0);
     let res = h.add_dataflow_op(Tk2Op::S, [q1])?;
@@ -67,19 +72,18 @@ fn main() {
     load_extensions(DECLARATIVE_YAML, &mut reg).unwrap();
 
     let mut circ = circ_example().unwrap();
-    viz_hugr(&circ);
+    // viz_hugr(&circ);
 
     // Step 1: Convert each H gate to MBQC pattern
     to_mbqc(&mut circ, &reg);
 
     // Step 2: Push all corrections and S gates to the end of the qubit wire
-    push_s_gates(&mut circ);
-    cancel_s_gates(&mut circ);
-    viz_hugr(&circ);
+    push_corrections_and_s_gates(&mut circ, &reg);
+    // viz_hugr(&circ);
 
     // Step 3: Remove all corrections from ancilla qubits, propagating them to the boolean expression for the correction on output qubits
-    push_corrections(&mut circ, &reg);
-    // signal_shift(&mut circ, &reg);
+    propagate_corrections(&mut circ, &reg);
+    viz_hugr(&circ);
 
     // Step 4: Convert the MBQC pattern to a circuit using n qubits
 
@@ -87,5 +91,5 @@ fn main() {
 
     // Step 6: Replace each operation from the ExtMBQC extension with its implementation in terms of Tk2Ops
     prep_to_alloc(&mut circ, &reg);
-    viz_hugr(&circ);
+    // viz_hugr(&circ);
 }
