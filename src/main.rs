@@ -1,7 +1,9 @@
+use std::path::Path;
+
 use hugr::{
     builder::{BuildError, DFGBuilder, Dataflow, DataflowHugr}, 
     extension::{
-        declarative::load_extensions, prelude::QB_T, PRELUDE_REGISTRY
+        declarative::load_extensions_file, prelude::QB_T, PRELUDE_REGISTRY
     }, 
     types::FunctionType, Hugr
 };
@@ -67,9 +69,9 @@ fn circ_example() -> Result<Hugr, BuildError> {
 
 fn main() {
     // Load the custom extension
-    const DECLARATIVE_YAML: &str = include_str!("mbqc_ops.yaml");
+    let file = Path::new("./src/mbqc_ops.yaml");
     let mut reg = PRELUDE_REGISTRY.clone();
-    load_extensions(DECLARATIVE_YAML, &mut reg).unwrap();
+    load_extensions_file(file, &mut reg).unwrap();
 
     let mut circ = circ_example().unwrap();
     // viz_hugr(&circ);
