@@ -51,6 +51,7 @@ let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T; 4], vec![QB_T; 4]))?;
 ```
 In this case, we're specifying that the HUGR will have four input qubits and four output qubits. This is described by the input to the initialiser `DFGBuilder::new` which needs to be of type `FunctionType`, i.e. a function signature: in our case, of one that goes from a vector of four qubits (input) to another vector of four qubits (output). This will create the following HUGR:
 ![image](https://github.com/CQCL/simple_tket2_mbqcification/assets/104848389/9c69f903-dff9-43a4-8cde-b5a1c8da509d)
+
 **Note:** You can visualise the HUGR at any point while we build it by adding a call to `viz_hugr(h.hugr());` (this will open up an image in your browser).
 As expected, our HUGR now has an `Input` and `Output` node, both with four qubits. The tree on the right is describing the hierarchy of our HUGR and we do not need to worry about it: it's just saying that node 0 (the data flow graph itself) "contains" the input and output node we just added. All of the nodes we add to this `h` are going to be at the same level of the hierarchy.
 
@@ -78,6 +79,7 @@ let q3 = res.out_wire(1);
 ```
 Currently, our HUGR looks like this:
 ![image](https://github.com/CQCL/simple_tket2_mbqcification/assets/104848389/d2edc356-bf18-49d9-a852-9dbdf7e6daa9)
+
 When we are done adding operations, we need to connect the final qubit wires to the output node.
 ```
 h.finish_hugr_with_outputs([q0, q1, q2, q3], &PRELUDE_REGISTRY)
@@ -102,6 +104,7 @@ called `Result::unwrap()` on an `Err` value: InvalidHUGR(UnconnectedPort { node:
 ```
 This error is telling us that the HUGR is invalid because there is an `UnconnectedPort`; specifically: `node: Node(1), port: Port(Outgoing, 3)`. We can then call `viz_hugr(h.hugr())` just before `h.finish_hugr_with_outputs` and find the node and port it is referring to. Notice that since we are calling `viz_hugr(h.hugr())` before `h.finish_hugr_with_outputs` the final wires have not yet been connected to the output node.
 ![image](https://github.com/CQCL/simple_tket2_mbqcification/assets/104848389/3e9a2bb2-b9fe-462c-9afe-6c1bd730c479)
+
 Indeed, the error was caused because I missed adding input to the `H` gate, so `q3` is not connected to anything.
 
 
@@ -121,20 +124,131 @@ load_extensions_file(file, &mut reg).unwrap();
 ```
 where we first indicate the location of the YAML file, then creates a save a copy of the `PRELUDE_REGISTRY` in the variable `reg` to which we will add the extension using `load_extensions_file`. The resulting registry in `reg` must be passed to any function that builds or rewrites a HUGR that contains nodes from the `ExtMBQC` extension we just loaded.
 
-The function `xcorr_h` in `patterns.rs` is an example of building a HUGR that contains operations and types from a custom extension. It uses the `ExtensionRegistry` passed to it as input (e.g. via `xcorr_h(&reg)` from `main`) to create the necessary instances of custom wires and nodes:
+The function `xcorr_h` in `patterns.rs` builds a HUGR that contains operations and types from the `ExtMBQC` extension. It uses the `ExtensionRegistry` passed to it as input (e.g. via `xcorr_h(&reg)` from `main`) to create the necessary instances of custom wires and nodes:
 ```
 pub fn xcorr_h(registry: &ExtensionRegistry) -> Result<Hugr, BuildError> {
     let extension = registry.get("ExtMBQC").unwrap();
     let my_bool = Type::new_extension(extension.get_type("MyBool").unwrap().instantiate([]).unwrap());
     let x_corr = extension.instantiate_extension_op("CorrectionX", [], registry).unwrap();
 ```
-TODO: Say something about instantiation
-TODO: Say something about how to use these later
+Notice that the syntax to instantiate types and operations are different. This interface may change in the future, but the key idea should remain: you can use the `name` field defined in the YAML file to create an instance that can be used by the HUGR builder.
+
+Continuing with the example of `xcorr_h`, we can use an extension type in the signature of a HUGR:
+```
+let mut h = DFGBuilder::new(FunctionType::new(vec![QB_T, my_bool], vec![QB_T]))?;
+```
+In this case, we are representing a circuit whose input is a qubit and a classical wire and whose output is just a single qubit. We can unpack the inputs as usual:
+```
+let mut inps = h.input_wires();
+let q = inps.next().unwrap();
+let c = inps.next().unwrap();
+```
+and add our custom `ExtensionOp` node in the same way we'd add a `Tk2Op` node:
+```
+let res = h.add_dataflow_op(x_corr, [q, c])?;
+let q = res.out_wire(0);
+let res = h.add_dataflow_op(Tk2Op::H, [q])?;
+let q = res.out_wire(0);
+```
+Finally, when calling `h.finish_hugr_with_outputs` we need to provide the `ExtensionRegistry` containing our `ExtMBQC` extension:
+```
+h.finish_hugr_with_outputs([q], registry)
+```
 
 ## Matching and rewriting
 
+The implementation of the rewrite passes in this project appears in `rewrite.rs`. All of them follow the template below.
+```
+pub fn push_corrections_and_s_gates(circ: &mut Hugr, reg: &ExtensionRegistry) {
+    // Specify the rewrite rules
+    let rules = vec![
+        // Push corrections
+        (xcorr_h(&reg), h_zcorr(&reg)),
+        (zcorr_h(&reg), h_xcorr(&reg)),
+        ...
+        // Push S gates
+        (s_cz_0(), cz_s_0()),
+        (s_cz_1(), cz_s_1()),
+    ]
+    // Unwrap all of the above `Result<Hugr, BuildError>` types into `Hugr`
+    .iter()
+    .map(|rule| (rule.0.clone().unwrap(), rule.1.clone().unwrap()))
+    .collect();
+    // Apply them exhaustively
+    apply_rules_exhaustively(rules, circ);
+}
+```
+Each rewrite rule where a subcircuit `LHS` is meant to be replace by another subcircuit `RHS` is specified as a pair `(LHS, RHS)`. These subcircuits correspond to the HUGRs built in `patterns.rs`. The lines `.iter()`, `.map(...)` and `collect()` are there just to extract the `Hugr` from each of the `Result<Hugr, BuildError>` returned by the functions in `patterns.rs`. Alternatively, I could have written each rule as `(s_cz_0().unwrap(), cz_s_0().unwrap())`. Finally, all of the rules collected in the vector `rules` are applied exhaustively on the input circuit by calling `apply_rules_exhaustively(rules, circ);`. The latter function is defined in `utils.rs` and explained below.
 
+### Applying all rewrite rules exhaustively
 
+The workflow of `apply_rules_exhaustively` in `utils.rs` is as follows:
+1. Find all matches in the current circuit for the LHS of each of the given rules.
+2. Go over each of the matches and replace them with the RHS of the corresponding rule.
+3. Since the circuit has changed, there may be new matches we can find, so we repeat the process until no more matches are found.
 
+In practice the implementation is a bit more nuanced, so let's go step by step. The first thing we must do is convert each of the LHS of the input `rules: Vec<(Hugr, Hugr)>` into a `CircuitPattern`.
+```
+let mut lhs_of_rules = vec![];
+for (lhs, _) in rules.iter() {
+    lhs_of_rules.push(
+        CircuitPattern::try_from_circuit(&lhs).unwrap()
+    );
+}
+```
+Here we are collecting the LHS of each rule in a vector `lhs_of_rules`, converting it to a `CircuitPattern` by calling `CircuitPattern::try_from_circuit(&lhs)`. 
+Next, we need to create a `PatternMatcher` for this collection of patterns:
+```
+let matcher = PatternMatcher::from_patterns(lhs_of_rules);
+```
+which we can immediately use to find all instances of the subcircuits in `lhs_of_rules` in the current circuit:
+```
+let mut matches = matcher.find_matches(circ);
+```
+We only need to build the `PatternMatcher` once, and we can reuse it as often as we like on different input circuits. The resulting `matches` is a list of pattern matches `Vec<PatternMatch>`. Each `PatternMatch` indicates the location in the `circ` HUGR where the match was found (more explicitly, it lists the nodes of the matched subgraph) as well as the `PatternID` identifying the element of `lhs_of_rules` that was matched.
 
+The next step is to convert each `PatternMatch` in `matches` to a `CircuitRewrite`. A `CircuitRewrite` is an object that contains all of the information to apply a particular subgraph replacement on a HUGR, but we are _not applying the rewrite_ yet. The only information that a `PatternMatch` is missing to become a `CircuitRewrite` is the `RHS` that we want to replace the match with. To identify this, we make use of the `PatternID` of the match:
+```
+let mut rewrites = vec![];
+for m in matches {
+    let rule_id = m.pattern_id().0;
+    let rhs = &rules[rule_id].1;
+
+    let rw = m.to_rewrite(circ, rhs.clone()).unwrap();
+    rewrites.push(rw);
+};
+```
+For each match `m` we are extracting its `PatternID`, which identifies the index corresponding to the match in the vector `lhs_of_rules` we passed to `PatternMatcher::from_patterns(lhs_of_rules)`. The type of `PatternID` is `struct PatternID(usize)`, so it's a struct with a single `usize` argument that we can access via `.0` (as if it were a tuple); the variable `rule_id` contains the integer index we were looking for. Since, by construction, the elements of `lhs_of_rules` follow the same order as `rules`, we can retrieve the rule whose LHS was matched as `rules[rule_id]`. Remember each rule is specified as a pair `(LHS, RHS)` so to obtain the RHS we just need to access the second element of the tuple via `.1`. Finally, we can generate a `CircuitRewrite` from our match `m` by calling `m.to_rewrite(circ, rhs.clone())`, where `.clone()` is necessary due to Rust's borrow checker constraints.
+
+Up to this point we have succesfully identified all instances and locations of rewrites that can be applied to `circ`. But we have not yet applied any of the rewrites. To do so, we just need to call `my_rewrite.apply(circ)`, where `circ` is of type `&mut Hugr` (note: if what you have is just a `Hugr` you'll instead need to use `my_rewrite.apply(&mut circ)`). However, there's a caveat: we can't simply iterate over all of the `CircuitRewrite` in our `rewrites` vector and apply them, because there might be some overlaps in their matches. 
+
+A simple example of the problem outlined above is a circuit `CZ (S \otimes S)` where we want to apply both the rewrite rules `CZ (S \otimes I) => (S \otimes I) CZ` and `CZ (I \otimes S) => (I \otimes S) CZ`: both will match, and the matches will overlap on the `CZ` gate. When a `CircuitRewrite` is applied it replaces all of the nodes in the LHS with the nodes in the RHS, and the HUGR does not know that the `CZ` in the LHS is the "same" `CZ` gate in the RHS. Consequently, once we apply the rewrite corresponding to the first rule, if we try to apply the rewrite of the second rule we will get a `SimpleReplacementError`. Fortunately, this has a simple solution: we can match and apply the second rewrite rule during the next iteration of our exhaustive rewrite strategy. All we have to do is avoid the `SimpleReplacementError` by keeping track of the nodes that have been changed by rewrites we've applied, and skipping any rewrite whose LHS contains any of those nodes:
+```
+fn apply_non_overlapping(
+    rewrites: impl IntoIterator<Item = CircuitRewrite>,
+    circ: &mut Hugr,
+) {
+    let rewrites = rewrites.into_iter();
+    let mut changed_nodes = HashSet::new();
+    for rewrite in rewrites {
+        if rewrite  // Skip if it changes a node that has already been changed
+            .subcircuit()
+            .nodes()
+            .iter()
+            .any(|n| changed_nodes.contains(n))
+        {
+            continue;
+        }
+        // Update the set of changed nodes
+        changed_nodes.extend(rewrite.subcircuit().nodes().iter().copied());
+        // Apply the rewrite
+        rewrite
+            .apply(circ)
+            .expect("Could not perform rewrite in exhaustive strategy");
+    }
+}
+```
+The code above is a simplification of the `GreedyRewriteStrategy` in the `tket2` crate, and is included in the `utils.rs` module of this project.
+
+To complete the implementation of `apply_rules_exhaustively` we just need to call `apply_non_overlapping(rewrites, circ)` and wrap both this and the call to `matcher.find_matches(circ)` in a `while matches.len() > 0`.
 
